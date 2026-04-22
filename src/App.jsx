@@ -122,12 +122,71 @@ const trendData = [
   { day: 'Sun', calories: 2090, target: 2200, weight: 95.9, steps: 11200, sleep: 7.3, hrv: 55, workout: 61 },
 ]
 
-function MetricCard({ icon: Icon, label, value, sub }) {
-  const iconEl = React.createElement(Icon, { className: 'h-4 w-4' })
+function BrandHeader({ badgeText = 'AI Coach' }) {
+  const [logoOk, setLogoOk] = React.useState(true)
+
+  return (
+    <div className="rounded-[28px] border-0 bg-white shadow-sm ring-1 ring-slate-200/60">
+      <div className="flex items-center justify-between gap-3 p-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {logoOk ? (
+            <img
+              src="/logo-trackly.png"
+              alt="Trackly"
+              className="h-10 w-10 rounded-2xl bg-white object-contain"
+              onError={() => setLogoOk(false)}
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 font-semibold text-white">
+              T
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold leading-tight text-slate-900">
+              Trackly
+            </div>
+            <div className="truncate text-[11px] leading-tight text-slate-500">
+              Nutrition & recovery coach
+            </div>
+          </div>
+        </div>
+
+        <Badge className="rounded-full">{badgeText}</Badge>
+      </div>
+    </div>
+  )
+}
+
+function MetricCard({ icon: Icon, iconNode, label, value, sub, accent }) {
+  const iconColorClass =
+    accent === 'calories'
+      ? 'text-rose-600'
+      : accent === 'protein'
+        ? 'text-rose-600'
+        : accent === 'carbs'
+          ? 'text-amber-600'
+          : accent === 'fat'
+            ? 'text-orange-600'
+            : accent === 'recovery'
+              ? 'text-rose-600'
+              : 'text-slate-500'
+
+  const iconBgClass =
+    accent === 'recovery' ? 'bg-rose-50 ring-1 ring-rose-100' : ''
+
+  const iconEl =
+    iconNode ?? React.createElement(Icon, { className: `h-4 w-4 ${iconColorClass}` })
   return (
     <div className="rounded-[20px] sm:rounded-3xl bg-white p-3 sm:p-4 shadow-sm ring-1 ring-slate-100">
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        {iconEl}
+        {iconBgClass ? (
+          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-xl ${iconBgClass}`}>
+            {iconEl}
+          </span>
+        ) : (
+          iconEl
+        )}
         <span>{label}</span>
       </div>
       <div className="mt-1.5 text-lg sm:text-2xl font-semibold text-slate-900 break-words">
@@ -140,7 +199,31 @@ function MetricCard({ icon: Icon, label, value, sub }) {
 
 function MacroRow({ label, value, goal, icon: Icon }) {
   const pct = Math.min((value / goal) * 100, 100)
-  const iconEl = React.createElement(Icon, { className: 'h-4 w-4' })
+  const iconColorClass =
+    label === 'Calories'
+      ? 'text-rose-600'
+      : label === 'Protein'
+        ? 'text-rose-600'
+        : label === 'Carbs'
+          ? 'text-amber-600'
+          : label === 'Fat'
+            ? 'text-orange-600'
+            : 'text-slate-700'
+
+  const iconEl =
+    label === 'Calories'
+      ? React.createElement('img', {
+          src: '/flame-calories.png',
+          alt: '',
+          className: 'h-4 w-4',
+        })
+      : label === 'Protein'
+        ? React.createElement('img', {
+            src: '/protein.png',
+            alt: '',
+            className: 'h-4 w-4',
+          })
+      : React.createElement(Icon, { className: `h-4 w-4 ${iconColorClass}` })
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
@@ -317,16 +400,7 @@ export default function MacroFactorAIConceptDemo() {
     <div className="min-h-screen bg-slate-50 pb-[120px] sm:pb-24">
       <div className="mx-auto w-full max-w-md space-y-3 px-3 pt-3 sm:space-y-4 sm:p-4">
         <MotionDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="rounded-[28px] border-0 shadow-sm">
-            <CardContent className="p-4">
-              <div className="text-base sm:text-lg font-semibold text-slate-900">
-                AI Macro + Recovery Coach
-              </div>
-              <div className="text-xs sm:text-sm text-slate-500">
-                Phone-first concept with nutrition and recovery
-              </div>
-            </CardContent>
-          </Card>
+          <BrandHeader badgeText="AI Coach" />
         </MotionDiv>
 
         {page === 'nutrition' && (
@@ -356,10 +430,24 @@ export default function MacroFactorAIConceptDemo() {
                 </Select>
 
                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <MetricCard icon={Flame} label="Calories" value={totals.calories} sub={`${remaining.calories} left`} />
-                  <MetricCard icon={Beef} label="Protein" value={`${totals.protein}g`} sub={`${remaining.protein}g left`} />
-                  <MetricCard icon={Wheat} label="Carbs" value={`${totals.carbs}g`} sub={`${remaining.carbs}g left`} />
-                  <MetricCard icon={Droplets} label="Fat" value={`${totals.fat}g`} sub={`${remaining.fat}g left`} />
+                  <MetricCard
+                    icon={Flame}
+                    iconNode={<img src="/flame-calories.png" alt="" className="h-4 w-4" />}
+                    label="Calories"
+                    value={totals.calories}
+                    sub={`${remaining.calories} left`}
+                    accent="calories"
+                  />
+                  <MetricCard
+                    icon={Beef}
+                    iconNode={<img src="/protein.png" alt="" className="h-4 w-4" />}
+                    label="Protein"
+                    value={`${totals.protein}g`}
+                    sub={`${remaining.protein}g left`}
+                    accent="protein"
+                  />
+                  <MetricCard icon={Wheat} label="Carbs" value={`${totals.carbs}g`} sub={`${remaining.carbs}g left`} accent="carbs" />
+                  <MetricCard icon={Droplets} label="Fat" value={`${totals.fat}g`} sub={`${remaining.fat}g left`} accent="fat" />
                 </div>
 
                 <div className="space-y-4 rounded-3xl bg-white p-4 ring-1 ring-slate-100">
@@ -596,10 +684,23 @@ export default function MacroFactorAIConceptDemo() {
                     label="Recovery Score"
                     value={`${recoveryScore}%`}
                     sub="Based on HRV, sleep, and load"
+                    accent="recovery"
                   />
-                  <MetricCard icon={Moon} label="Sleep" value="7.3 h" sub="Last night" />
-                  <MetricCard icon={HeartPulse} label="HRV" value="55 ms" sub="Above your weekly baseline" />
-                  <MetricCard icon={Footprints} label="Steps" value="11.2k" sub="Today so far" />
+                  <MetricCard
+                    icon={Moon}
+                    iconNode={<img src="/sleep-moon.png" alt="" className="h-4 w-4" />}
+                    label="Sleep"
+                    value="7.3 h"
+                    sub="Last night"
+                  />
+                  <MetricCard icon={HeartPulse} label="HRV" value="55 ms" sub="Above your weekly baseline" accent="recovery" />
+                  <MetricCard
+                    icon={Footprints}
+                    iconNode={<img src="/steps.png" alt="" className="h-4 w-4" />}
+                    label="Steps"
+                    value="11.2k"
+                    sub="Today so far"
+                  />
                 </div>
 
                 <div className="rounded-3xl bg-slate-900 p-4 text-slate-50">
@@ -653,7 +754,7 @@ export default function MacroFactorAIConceptDemo() {
                   : 'bg-slate-100 text-slate-600'
               }`}
             >
-              <Flame className="mb-1 h-5 w-5" />
+              <img src="/flame-calories.png" alt="" className="mb-1 h-5 w-5" />
               Nutrition
             </button>
             <button
@@ -664,7 +765,11 @@ export default function MacroFactorAIConceptDemo() {
                   : 'bg-slate-100 text-slate-600'
               }`}
             >
-              <HeartPulse className="mb-1 h-5 w-5" />
+              <HeartPulse
+                className={`mb-1 h-5 w-5 ${
+                  page === 'recovery' ? 'text-rose-500' : 'text-rose-600/80'
+                }`}
+              />
               Recovery
             </button>
           </div>

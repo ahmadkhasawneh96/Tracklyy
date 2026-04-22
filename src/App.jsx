@@ -241,6 +241,96 @@ function MacroRow({ label, value, goal, icon: Icon }) {
 }
 
 function TrendChart({ dataKey, title, subtitle, type = 'line' }) {
+  const RANGE_ORDER = /** @type {const} */ (['daily', 'weekly', 'monthly', 'yearly'])
+
+  const formatValue = (v) => {
+    if (dataKey === 'sleep') return `${v.toFixed(1)} h`
+    if (dataKey === 'steps') return `${Math.round(v / 100) / 10}k`
+    if (dataKey === 'hrv') return `${Math.round(v)} ms`
+    if (dataKey === 'workout') return `${Math.round(v)}`
+    if (dataKey === 'calories') return `${Math.round(v)} kcal`
+    if (dataKey === 'weight') return `${v.toFixed(1)} kg`
+    return `${Math.round(v)}`
+  }
+
+  const clamp = (n, min, max) => Math.min(Math.max(n, min), max)
+
+  // Build a deterministic longer history from the 7-day mock.
+  const yearDaily = useMemo(() => {
+    const base = trendData
+    const out = []
+    let seed = 42
+    const rnd = () => {
+      // simple LCG, deterministic per render
+      seed = (seed * 1664525 + 1013904223) % 4294967296
+      return seed / 4294967296
+    }
+
+    for (let i = 0; i < 365; i++) {
+      const b = base[i % base.length]
+      const jitter = (scale) => (rnd() - 0.5) * scale
+      out.push({
+        day: `D${i + 1}`,
+        calories: clamp(b.calories + jitter(160), 1600, 3600),
+        target: b.target,
+        weight: clamp(b.weight + jitter(0.35), 70, 140),
+        steps: clamp(b.steps + jitter(2200), 1000, 25000),
+        sleep: clamp(b.sleep + jitter(0.8), 4.5, 9.2),
+        hrv: clamp(b.hrv + jitter(10), 20, 90),
+        workout: clamp(b.workout + jitter(18), 0, 100),
+      })
+    }
+    return out
+  }, [])
+
+  const ranges = useMemo(() => {
+    const makeAvg = (rows) => {
+      if (!rows.length) return 0
+      return (
+        rows.reduce((sum, r) => sum + (Number(r[dataKey]) || 0), 0) / rows.length
+      )
+    }
+
+    const aggregate = (rows, size, prefix) => {
+      const out = []
+      for (let i = 0; i < rows.length; i += size) {
+        const chunk = rows.slice(i, i + size)
+        out.push({
+          day: `${prefix}${Math.floor(i / size) + 1}`,
+          [dataKey]: makeAvg(chunk),
+        })
+      }
+      return out
+    }
+
+    const last7 = trendData.map((r) => ({ day: r.day, [dataKey]: r[dataKey] }))
+    const overall = makeAvg(yearDaily)
+
+    const weeklyBase = yearDaily.slice(-84) // last ~12 weeks
+    const monthlyBase = yearDaily.slice(-180) // last ~6 months (30d buckets)
+    const yearlyBase = yearDaily.slice(-365) // last year (30d buckets)
+
+    const weekly = aggregate(weeklyBase, 7, 'W')
+    const monthly = aggregate(monthlyBase, 30, 'M')
+    const yearly = aggregate(yearlyBase, 30, 'Y')
+
+    return {
+      overall,
+      daily: { label: 'Daily', avg: makeAvg(trendData), data: last7 },
+      weekly: { label: 'Weekly', avg: makeAvg(weeklyBase), data: weekly },
+      monthly: { label: 'Monthly', avg: makeAvg(monthlyBase), data: monthly },
+      yearly: { label: 'Yearly', avg: makeAvg(yearlyBase), data: yearly },
+    }
+  }, [dataKey, yearDaily])
+
+  const [range, setRange] = useState('daily')
+  const active = ranges[range] ?? ranges.daily
+  const delta = active.avg - ranges.overall
+  const deltaText =
+    dataKey === 'steps'
+      ? `${delta >= 0 ? '+' : ''}${Math.round(delta)}`
+      : `${delta >= 0 ? '+' : ''}${delta.toFixed(dataKey === 'sleep' || dataKey === 'weight' ? 1 : 0)}`
+
   return (
     <Card className="rounded-3xl border-0 shadow-sm">
       <CardHeader className="pb-2">
@@ -251,7 +341,7 @@ function TrendChart({ dataKey, title, subtitle, type = 'line' }) {
         <div className="h-40 sm:h-48 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             {type === 'area' ? (
-              <AreaChart data={trendData}>
+              <AreaChart data={active.data}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                 <XAxis dataKey="day" fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis fontSize={11} tickLine={false} axisLine={false} />
@@ -259,7 +349,7 @@ function TrendChart({ dataKey, title, subtitle, type = 'line' }) {
                 <Area type="monotone" dataKey={dataKey} strokeWidth={2} fillOpacity={0.12} />
               </AreaChart>
             ) : (
-              <LineChart data={trendData}>
+              <LineChart data={active.data}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                 <XAxis dataKey="day" fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis fontSize={11} tickLine={false} axisLine={false} />
@@ -268,6 +358,37 @@ function TrendChart({ dataKey, title, subtitle, type = 'line' }) {
               </LineChart>
             )}
           </ResponsiveContainer>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <div className="text-slate-500">
+              Overall avg <span className="font-medium text-slate-900">{formatValue(ranges.overall)}</span>
+            </div>
+            <div className="text-slate-500">
+              vs overall <span className={`font-medium ${delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{deltaText}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {RANGE_ORDER.map((key) => {
+              const r = ranges[key]
+              const selected = range === key
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setRange(key)}
+                  className={`inline-flex items-center gap-2 rounded-2xl px-3 py-1.5 text-xs font-medium transition ${
+                    selected ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{r.label}</span>
+                  <span className={`${selected ? 'text-white/90' : 'text-slate-500'}`}>{formatValue(r.avg)}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

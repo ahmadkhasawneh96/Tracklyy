@@ -41,7 +41,10 @@ import {
   Camera,
   MessageSquare,
   PlusCircle,
+  Plus,
+  Minus,
   Sparkles,
+  Trash2,
   UtensilsCrossed,
   Flame,
   Beef,
@@ -101,9 +104,9 @@ const foodDB = {
 }
 
 const initialLogs = [
-  { id: 1, time: '08:20', method: 'Chat AI', ...foodDB.oats_shake },
-  { id: 2, time: '13:10', method: 'Manual', ...foodDB.chicken_rice },
-  { id: 3, time: '17:45', method: 'QR Scan', ...foodDB.greek_yogurt },
+  { id: 1, time: '08:20', method: 'Chat AI', servings: 1, ...foodDB.oats_shake },
+  { id: 2, time: '13:10', method: 'Manual', servings: 1, ...foodDB.chicken_rice },
+  { id: 3, time: '17:45', method: 'QR Scan', servings: 1, ...foodDB.greek_yogurt },
 ]
 
 const goalsByMode = {
@@ -418,10 +421,10 @@ export default function MacroFactorAIConceptDemo() {
   const totals = useMemo(() => {
     return logs.reduce(
       (acc, item) => ({
-        calories: acc.calories + item.calories,
-        protein: acc.protein + item.protein,
-        carbs: acc.carbs + item.carbs,
-        fat: acc.fat + item.fat,
+        calories: acc.calories + item.calories * (item.servings ?? 1),
+        protein: acc.protein + item.protein * (item.servings ?? 1),
+        carbs: acc.carbs + item.carbs * (item.servings ?? 1),
+        fat: acc.fat + item.fat * (item.servings ?? 1),
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     )
@@ -487,13 +490,19 @@ export default function MacroFactorAIConceptDemo() {
 
   const addManual = () => {
     const item = foodDB[manualFood]
-    setLogs((prev) => [...prev, { id: Date.now(), time: 'Now', method: 'Manual', ...item }])
+    setLogs((prev) => [
+      ...prev,
+      { id: Date.now(), time: 'Now', method: 'Manual', servings: 1, ...item },
+    ])
   }
 
   const scanQR = () => {
     const pool = [foodDB.salmon_rice, foodDB.tuna_wrap, foodDB.ramsi_eggs]
     const item = pool[Math.floor(Math.random() * pool.length)]
-    setLogs((prev) => [...prev, { id: Date.now(), time: 'Now', method: 'QR Scan', ...item }])
+    setLogs((prev) => [
+      ...prev,
+      { id: Date.now(), time: 'Now', method: 'QR Scan', servings: 1, ...item },
+    ])
   }
 
   const sendChat = () => {
@@ -513,8 +522,25 @@ export default function MacroFactorAIConceptDemo() {
         text: `I estimated that as ${item.name}: ${item.calories} kcal, ${item.protein}g protein, ${item.carbs}g carbs, ${item.fat}g fat. Based on your goal, you still need about ${Math.max(goal.protein - (totals.protein + item.protein), 0)}g protein today.`,
       },
     ])
-    setLogs((prev) => [...prev, { id: Date.now(), time: 'Now', method: 'Chat AI', ...item }])
+    setLogs((prev) => [
+      ...prev,
+      { id: Date.now(), time: 'Now', method: 'Chat AI', servings: 1, ...item },
+    ])
     setChatInput('')
+  }
+
+  const updateServings = (id, delta) => {
+    setLogs((prev) =>
+      prev.map((l) => {
+        if (l.id !== id) return l
+        const next = Math.max(0.5, Math.min(10, (l.servings ?? 1) + delta))
+        return { ...l, servings: Number(next.toFixed(1)) }
+      })
+    )
+  }
+
+  const removeLog = (id) => {
+    setLogs((prev) => prev.filter((l) => l.id !== id))
   }
 
   return (
@@ -741,6 +767,7 @@ export default function MacroFactorAIConceptDemo() {
                                 id: Date.now() + idx,
                                 time: 'Suggested',
                                 method: 'AI Suggestion',
+                                servings: 1,
                                 ...s,
                               },
                             ])
@@ -766,7 +793,7 @@ export default function MacroFactorAIConceptDemo() {
                     {logs.map((log) => (
                       <div
                         key={log.id}
-                        className="flex items-center justify-between rounded-2xl bg-white p-3 ring-1 ring-slate-100"
+                        className="group relative flex items-center justify-between rounded-2xl bg-white p-3 ring-1 ring-slate-100"
                       >
                         <div>
                           <div className="font-medium">{log.name}</div>
@@ -774,10 +801,48 @@ export default function MacroFactorAIConceptDemo() {
                             {log.time} · {log.method}
                           </div>
                         </div>
-                        <div className="text-right text-sm text-slate-600">
-                          <div>{log.calories} kcal</div>
-                          <div>
-                            {log.protein}P / {log.carbs}C / {log.fat}F
+                        <div className="flex items-center gap-3">
+                          <div className="text-right text-sm text-slate-600">
+                            <div className="font-medium text-slate-700">
+                              {Math.round(log.calories * (log.servings ?? 1))} kcal
+                              <span className="ml-1 text-xs text-slate-400">
+                                ×{log.servings ?? 1}
+                              </span>
+                            </div>
+                            <div>
+                              {Math.round(log.protein * (log.servings ?? 1))}P /{' '}
+                              {Math.round(log.carbs * (log.servings ?? 1))}C /{' '}
+                              {Math.round(log.fat * (log.servings ?? 1))}F
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 opacity-0 translate-x-2 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-x-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-x-0">
+                          <div className="flex items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-sm ring-1 ring-slate-200/70 backdrop-blur">
+                            <button
+                              type="button"
+                              onClick={() => updateServings(log.id, -0.5)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              aria-label="Decrease portion"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateServings(log.id, 0.5)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100"
+                              aria-label="Increase portion"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeLog(log.id)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100"
+                              aria-label="Delete log"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
                       </div>
